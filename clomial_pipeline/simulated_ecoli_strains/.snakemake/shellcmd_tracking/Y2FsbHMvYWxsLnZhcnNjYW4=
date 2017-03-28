@@ -1,0 +1,1 @@
+java -jar ~/tools/VarScan.v2.3.9.jar mpileup2snp calls/all.pileup > calls/all.varscan
