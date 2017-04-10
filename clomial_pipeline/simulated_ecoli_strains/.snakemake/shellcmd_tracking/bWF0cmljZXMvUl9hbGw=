@@ -1,1 +1,0 @@
-python /home/novitskayam/metastrains/scripts/varscan_to_matrices.py calls/all.varscan matrices/R_all matrices/X_all

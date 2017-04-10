@@ -1,1 +1,0 @@
-samtools mpileup -B -f /home/novitskayam/metastrains/refs/K12.fasta sorted_reads/1.bam sorted_reads/2.bam sorted_reads/3.bam sorted_reads/4.bam sorted_reads/5.bam sorted_reads/6.bam sorted_reads/7.bam sorted_reads/8.bam sorted_reads/9.bam sorted_reads/10.bam sorted_reads/11.bam > calls/all.pileup

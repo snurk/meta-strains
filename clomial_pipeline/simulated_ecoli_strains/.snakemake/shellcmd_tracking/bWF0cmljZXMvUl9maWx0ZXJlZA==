@@ -1,1 +1,0 @@
-python /home/novitskayam/metastrains/scripts/filter_matrices.py matrices/R_all matrices/X_all matrices/R_filtered matrices/X_filtered

@@ -1,1 +1,0 @@
-Rscript ../../scripts/run_clomial.R matrices/R_filtered matrices/X_filtered matrices/___frequency_results

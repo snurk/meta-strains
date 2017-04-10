@@ -1,0 +1,107 @@
+SAMPLES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
+DIR_WITH_SAMPLES = "/Molly/snurk/infant_gut/"
+# also check names of read files in the rule "bwa_map"
+PATH_TO_REFERENCE = "../../refs/Staphylococcus_epidermidis_strain_1.fasta"
+# dir with reference must contain bwa index
+CLONE_NUMBERS = ["3", "4", "5", "6"]
+# May take a very long time for some numbers of clones!
+
+#_____________________________________________________________________________
+
+
+rule all:
+    input:
+        expand("clomial_results/BIC_{n}.txt", n=CLONE_NUMBERS)
+
+
+rule bwa_map:
+    input:
+        PATH_TO_REFERENCE,
+        DIR_WITH_SAMPLES + "sample{sample}/left.fastq.gz",
+        DIR_WITH_SAMPLES + "sample{sample}/right.fastq.gz"
+    output:
+        "mapped_reads/{sample}.bam"
+    log:
+        "logs/bwa_map/{sample}.log"
+    shell:
+        "(bwa mem -t 16 {input}"
+        " | samtools view -Sb -F 516 -f 3  - > {output}) 2> {log}"
+        # TODO: may be filters for samtools are too hard?
+
+
+rule samtools_sort:
+    input:
+        "mapped_reads/{sample}.bam"
+    output:
+        "sorted_reads/{sample}.bam"
+    log:
+        "logs/samtools_sort/{sample}.log"
+    shell:
+        "samtools sort -T sorted_reads/{wildcards.sample} "
+        "-O bam {input} > {output} 2> {log}"
+
+
+rule samtools_mpileup:
+    input:
+        fa = PATH_TO_REFERENCE,
+        bam = expand("sorted_reads/{sample}.bam", sample=SAMPLES)
+    output:
+        "calls/all.pileup"
+    log:
+        "logs/samtools_mpileup/all.log"
+    shell:
+        "samtools mpileup -B -f {input.fa} {input.bam} > {output} 2> {log}"
+
+
+rule varscan:
+    input:
+        "calls/all.pileup"
+    output:
+        "calls/all.varscan"
+    log:
+        "logs/varscan/all.log"
+    shell:
+        "java -jar /home/novitskayam/tools/VarScan.v2.3.9.jar mpileup2snp "
+        "{input} > {output} 2> {log}"
+
+
+rule make_matrices:
+    input:
+        "calls/all.varscan"
+    output:
+        "matrices/R_all",
+        "matrices/X_all"
+    log:
+        "logs/make_matrices/all.log"
+    shell:
+        "python ../../scripts/varscan_to_matrices.py "
+        "{input} {output} &> {log}"
+
+
+rule filter_matrices:
+    input:
+        "matrices/R_all",
+        "matrices/X_all"
+    output:
+        "matrices/R_filtered",
+        "matrices/X_filtered"
+    log:
+        "logs/filter_matrices/all.log"
+    shell:
+        "python ../../scripts/filter_matrices.py "
+        "{input} {output} &> {log}"
+
+
+rule run_clomial:
+    input:
+        "matrices/R_filtered",
+        "matrices/X_filtered"
+    output:
+        "clomial_results/frequencies_{clone_number}.txt",
+        "clomial_results/genotypes_{clone_number}.txt",
+        "clomial_results/BIC_{clone_number}.txt"
+    log:
+        "logs/run_clomial/{clone_number}_clones.log"
+    shell:
+        "Rscript ../../scripts/run_clomial.R "
+        "{input} {wildcards.clone_number} &> {log}"
