@@ -1,0 +1,19 @@
+Package: Clomial
+Type: Package
+Title: Infers clonal composition of a tumor
+Version: 1.11.0
+Date: 2015-04-04
+Author: Habil Zare and Alex Hu
+Maintainer: Habil Zare <zare@txstate.edu>
+Depends: R (>= 2.10), matrixStats
+Imports: methods, permute
+Description: THIS VERSION IS MODIFIED FOR METAGENOMES.
+        Clomial fits binomial distributions to counts obtained
+        from Next Gen Sequencing data of multiple samples of the same
+        tumor. The trained parameters can be interpreted to infer the
+        clonal structure of the tumor.
+License: GPL (>= 2)
+biocViews: Genetics, GeneticVariability, Sequencing, Clustering,
+        MultipleComparison, Bayesian, DNASeq, ExomeSeq,
+        TargetedResequencing
+LazyLoad: yes

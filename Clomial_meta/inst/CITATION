@@ -1,0 +1,24 @@
+## To check rendering of citation, run readCitationFile("CITATION")
+
+citHeader("To cite package 'Clomial' in publications use:")
+     
+## R >= 2.8.0 passes package metadata to citation().
+if(!exists("meta") || is.null(meta)) meta <- packageDescription("nlme")
+year <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date)
+vers <- paste("R package version", meta$Version)
+
+citEntry(entry="Article",
+        author = "Zare, H and et al. ",
+        title = "{Inferring clonal composition from multiple sections of a breast cancer}",
+        journal = "PLOS Computational Biology",
+        year = "2014",
+        volume = "10",
+        number = "7",
+        pages = "e1003703",
+        month = "July",
+
+        textVersion = paste("Zare, H, et al.", "(2014) ", 
+        "Inferring clonal composition from multiple sections of a breast cancer, Zare et al., PLoS Comput Biol 10(7): e1003703.",
+        "URL: http://noble.gs.washington.edu/~zare/", ".", sep=""))
+
+ 

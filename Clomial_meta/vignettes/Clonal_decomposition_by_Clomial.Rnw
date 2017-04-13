@@ -1,0 +1,208 @@
+%
+% NOTE -- ONLY EDIT THE .Rnw FILE!!!  The .tex file is
+% likely to be overwritten.
+%
+
+
+%\VignetteIndexEntry{A likelihood maximization approach to infer the clonal structure of a cancer using multiple tumor samples}
+%\VignetteDepends{Clomial}
+%\VignetteKeywords{Cancer, Binomial, Clones, EM}
+%\VignettePackage{Clomial}
+\documentclass[12pt]{article}
+
+\usepackage{amsmath}
+\usepackage{cite, hyperref}
+
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rpackage}[1]{{\textit{#1}}}
+\newcommand{\refOne}{\textit{Zare et al. 2014}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+
+\author{Habil Zare }
+
+\begin{document}
+\title{Clomial: A likelihood maximization approach to infer the 
+clonal structure of a cancer using multiple tumor samples}
+\maketitle{}
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+Identifying the clonal decomposition of a tumor is oncologically important 
+and computationally challenging.  
+
+\subsection{Oncological motivation}
+Cancers arise from successive rounds of mutation and selection, generating 
+clonalpopulations that vary in size, mutational content and 
+drug responsiveness.
+Ascertaining the clonal composition of a tumor is therefore important both 
+for prognosis and therapy. Mutation counts
+and frequencies resulting from next-generation sequencing (NGS) potentially 
+reflect a tumor's clonal composition; however, deconvolving NGS data to infer 
+a tumor's clonal structure presents a major challenge.
+
+\subsection{Computational methodology}
+Clomial is based on a generative model for NGS data derived from multiple 
+subsections of a single tumor.
+The counts of alternative alleles are modeled using binomial distributions, 
+and therefore, the novel method is called {\bf ``Clomial''}; 
+{\bf Clo}nal decomposition using bino{\bf{mial}} models.
+Unlike the previous approaches, Clomial is capable of incorporating multiple
+samples in the analysis together to increase statistical power.
+It uses an expectation-maximization (EM) procedure for estimating
+the clonal genotypes and relative frequencies
+as described in \refOne,
+which demonstrates, via simulation,
+the validity of Clomial approach.
+As a real life example, 
+this package also provides the data and code to infer the clonal composition
+of a primary breast cancer and associated metastatic lymph node. 
+Applying Clomial to larger numbers of tumors should cast light on the 
+clonal evolution of cancers in space and time.
+
+Please refer to \refOne for a complete  description of
+the methodology, and the results on the real data set.
+
+
+
+\section{How to run Clomial?}
+\subsection{Installation}
+Clomial is an R package source that can be downloaded and 
+installed from BioCunductor by the followig commands in R:
+\newline
+$\\$
+\texttt{source("http://bioconductor.org/biocLite.R")}
+\newline
+\texttt{biocLite("Clomial")}
+$\\$
+
+Alternative, if the source code is already available, 
+the package can be installed by the following command in Linux:
+\newline
+$\\$
+\texttt{R CMD INSTALL Clomial\_x.y.z.tar.gz}
+\newline
+$\\$
+where x.y.z. determines the version.
+The second approach requires all the dependencies be installed manually, 
+therefore, the first approach is preferred.
+
+\subsection{A quick overview}
+The main function is \code{Clomial()} which takes as input 2 matrices 
+$Dt$ and $Dc$.
+They contain the counts of the alternative allele, and the total number of 
+processed reads, accordingly. 
+Their rows correspond to the genomic loci, and their columns correspond to 
+the samples.
+Also, $C$, the assumed number of clones should be provided to \code{Clomial()}.
+Several models should be trained using different initial values to escape from
+ local optima.
+Then, the best one in terms of the likelihood can be chosen by 
+choose.best() function.
+Finally, the Bayesian Information Criterion (BIC) can be performed using the 
+compute.bic() function
+to estimate the number of clones. However, the results of BIC analysis should 
+be interpreted with 
+great caution for the reasons explained in \refOne.
+
+
+\subsection{An example}
+
+This example shows how Clomial can be run on counts obtained from next 
+generation sequencing. 
+The user might use standard tools such as BWA, Samtools, or DeepSNV to map 
+the reads and compute the counts.
+In the following example, we analyze ready-to-use data from a primary breast
+cancer and associated metastatic lymph node,
+where breastCancer is a list containing the input 2 matrices $Dt$ and $Dc$.
+
+\begin{center}
+<<example,fig=FALSE, echo=TRUE>>=
+library(Clomial)
+set.seed(1)
+data(breastCancer)
+Dc <- breastCancer$Dc
+Dt <- breastCancer$Dt
+Clomial2 <-Clomial(Dc=Dc,Dt=Dt,maxIt=20,C=4,binomTryNum=2)
+@
+\end{center}
+
+Clomial is done and the results are stored in \code{Clomial2}. 
+We are interested in \code{Clomial[["models"]]} which is a list of 
+trained models.
+For each trained model, $Mu$ models the matrix of genotypes, 
+where rows and columns correspond to genomic loci and clones, accordingly. 
+Also, \code{P} is the matrix of clonal frequency where rows and columns 
+correspond to clones and samples, accordingly. For example, the trained 
+parameters for the first model are given by:
+
+\begin{center}
+<<model1,fig=FALSE, echo=TRUE>>=
+model1 <- Clomial2$models[[1]]
+## The clonal frequencies:
+round(model1$P,digits=2)
+## Similarly, the genotypes is given by round(model1$Mu).
+@
+\end{center}
+
+\subsection{Choosing the best model}
+In practice, more models should be trained using multiple random 
+initialization to escape from local optima. This can be done by,
+say, \code{binomTryNum=1000} which needs longer computational time, 
+in order of two hours, for this data.
+For the purpose of this manual, we can use pre-computed results as follows:
+
+\begin{center}
+<<model1,fig=FALSE, echo=TRUE>>=
+data(Clomial1000)
+models <- Clomial1000$models
+## Number of trained models:
+length(models)
+@
+\end{center}
+
+The best model in terms of likelihood is given by \code{choos.best()} function:
+\begin{center}
+<<model1,fig=FALSE, echo=TRUE>>=
+chosen <- choose.best(models=models, doTalk=TRUE)
+M1 <- chosen$bestModel
+print("Genotypes according to the best model:")
+round(M1$Mu)
+print("Clone frequencies in the first sample:")
+round(M1$P[,1],digits=2)
+@
+\end{center}
+
+In the above demo example, the number of clones was assumed to be 4. 
+For real applications, it is useful to try several clone numbers and 
+compare the results using BIC.
+Also, note that fitting the best set of parameters needs a large number of 
+models to be trained on data
+in order to escape from local optima. In practice, the suitable number of 
+models depends on the assumed number of clones, number of genomic loci, 
+and number on samples.
+
+\section{Reference}
+Zare et al., \textbf{
+Inferring clonal composition from multiple sections of a breast cancer},
+PLoS Comput Biol 10(7): e1003703.
+
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
