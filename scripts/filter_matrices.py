@@ -1,4 +1,4 @@
-import sys
+mport sys
 import numpy as np
 
 
@@ -16,6 +16,12 @@ bool_arr = np.array([filter_by_coverage(row) for row in r_matrix])
 
 r_matrix = r_matrix[bool_arr]
 x_matrix = x_matrix[bool_arr]
+
+if len(r_matrix) > 200:
+    sample = np.random.choice(len(r_matrix), size=200)
+    sample = np.unique(sample)
+    r_matrix = r_matrix[sample]
+    x_matrix = x_matrix[sample]
 
 np.savetxt(sys.argv[3], r_matrix, fmt='%s')
 np.savetxt(sys.argv[4], x_matrix, fmt='%s')
