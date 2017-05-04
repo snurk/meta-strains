@@ -1,32 +1,35 @@
-SAMPLES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
+SAMPLES = ["1", "2", "3", "4", "5", "6"]
 DIR_WITH_SAMPLES = "/Molly/snurk/infant_gut/"
-# also check names of read files in the rule "bwa_map"
+NAME_OF_LEFT_READ = "left.fastq.gz"
+NAME_OF_RIGHT_READ = "right.fastq.gz"
 PATH_TO_REFERENCE = "../../refs/Staphylococcus_epidermidis_strain_1.fasta"
 # dir with reference must contain bwa index
 CLONE_NUMBERS = ["3", "4", "5", "6"]
-# May take a very long time for some numbers of clones!
+# May take a very long time for big numbers of clones!
+min_C = min(CLONE_NUMBERS)
+max_C = max(CLONE_NUMBERS)
+NUM_OF_EM = 10
 
 #_____________________________________________________________________________
 
 
 rule all:
     input:
-        expand("clomial_results/BIC_{n}.txt", n=CLONE_NUMBERS)
+        "BIC.png"
 
 
 rule bwa_map:
     input:
         PATH_TO_REFERENCE,
-        DIR_WITH_SAMPLES + "sample{sample}/left.fastq.gz",
-        DIR_WITH_SAMPLES + "sample{sample}/right.fastq.gz"
+        DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_LEFT_READ,
+        DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_RIGHT_READ
     output:
         "mapped_reads/{sample}.bam"
     log:
         "logs/bwa_map/{sample}.log"
     shell:
-        "(bwa mem -t 16 {input}"
-        " | samtools view -Sb -F 516 -f 3  - > {output}) 2> {log}"
-        # TODO: may be filters for samtools are too hard?
+        "(bwa mem -t 16 {input} -T 0 -A 1 -B 10 -O 200 -L 200"
+        " | samtools view -Sb -F 516 -f 3 -q 1 - > {output}) 2> {log}"
 
 
 rule samtools_sort:
@@ -86,7 +89,7 @@ rule filter_matrices:
         "matrices/R_filtered",
         "matrices/X_filtered"
     log:
-        "logs/filter_matrices/all.log"
+        "logs/filter_matrices.log"
     shell:
         "python ../../scripts/filter_matrices.py "
         "{input} {output} &> {log}"
@@ -104,4 +107,16 @@ rule run_clomial:
         "logs/run_clomial/{clone_number}_clones.log"
     shell:
         "Rscript ../../scripts/run_clomial.R "
-        "{input} {wildcards.clone_number} &> {log}"
+        "{input} {wildcards.clone_number} {NUM_OF_EM} &> {log}"
+
+
+rule draw_BIC:
+    input:
+        files = expand("clomial_results/BIC_{n}.txt", n=CLONE_NUMBERS)
+    output:
+        "BIC.png"
+    log:
+        "logs/draw_BIC.log"
+    shell:
+        "Rscript ../../scripts/draw_BIC.R "
+        "{min_C} {max_C} {output} &> {log}"

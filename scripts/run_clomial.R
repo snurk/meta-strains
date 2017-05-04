@@ -6,6 +6,7 @@ args <- commandArgs(trailingOnly = TRUE)
 R <- read.table(args[1])
 X <- read.table(args[2])
 cur_C <- as.numeric(args[3])
+EM_num <- as.numeric(args[4])
 
 meta.log.likelihood <- function(Dc, Dt, Mu, P) {
   log.likelihood <- 0
@@ -39,6 +40,8 @@ meta.bic_and_ll <- function (Dc, Dt, Mu, P) {
 clomial_result <- Clomial(Dc = R,
                           Dt = X,
                           C = cur_C,
+                          binomTryNum = EM_num,
+                          maxIt = 50,
                           doTalk = TRUE)
 chosen <- choose.best(models = clomial_result$models, doTalk = TRUE)
 best_model <- chosen$bestModel
