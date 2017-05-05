@@ -15,11 +15,19 @@ min_coverage = np.percentile(r_matrix, 25, axis=0)
 max_coverage = np.percentile(r_matrix, 75, axis=0)
 
 bool_arr = np.array([filter_by_coverage(row) for row in r_matrix])
-
 r_matrix = r_matrix[bool_arr]
 x_matrix = x_matrix[bool_arr]
+print("Sites after coverage filtering:", len(r_matrix))
 
-print("Sites after filtering:", len(r_matrix))
+ind = [i for i in range(len(x_matrix)) if not ((np.abs(r_matrix[i, :] - x_matrix[i, :]) <= 3).all())]
+r_matrix = r_matrix[ind]
+x_matrix = x_matrix[ind]
+print("Sites after filtering non-sense:", len(r_matrix))
+
+ind = [i for i in range(len(x_matrix)) if not ((x_matrix[i, :] <= 3).all())]
+r_matrix = r_matrix[ind]
+x_matrix = x_matrix[ind]
+print("Sites after filtering low coverage:", len(r_matrix))
 
 # chose about 200 random sites
 # if len(r_matrix) > 200:

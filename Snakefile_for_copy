@@ -8,7 +8,7 @@ CLONE_NUMBERS = ["3", "4", "5", "6"]
 # May take a very long time for big numbers of clones!
 min_C = min(CLONE_NUMBERS)
 max_C = max(CLONE_NUMBERS)
-NUM_OF_EM = 10
+NUM_OF_EM = 500
 
 #_____________________________________________________________________________
 
@@ -51,7 +51,7 @@ rule samtools_mpileup:
     output:
         "calls/all.pileup"
     log:
-        "logs/samtools_mpileup/all.log"
+        "logs/samtools_mpileup.log"
     shell:
         "samtools mpileup -B -f {input.fa} {input.bam} > {output} 2> {log}"
 
@@ -62,7 +62,7 @@ rule varscan:
     output:
         "calls/all.varscan"
     log:
-        "logs/varscan/all.log"
+        "logs/varscan.log"
     shell:
         "java -jar /home/novitskayam/tools/VarScan.v2.3.9.jar mpileup2snp "
         "{input} > {output} 2> {log}"
@@ -75,7 +75,7 @@ rule make_matrices:
         "matrices/R_all",
         "matrices/X_all"
     log:
-        "logs/make_matrices/all.log"
+        "logs/make_matrices.log"
     shell:
         "python ../../scripts/varscan_to_matrices.py "
         "{input} {output} &> {log}"
