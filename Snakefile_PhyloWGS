@@ -1,0 +1,104 @@
+SAMPLES = ["1", "2", "3", "4", "5"]
+DIR_WITH_SAMPLES = "/Molly/mchernigovskaya/constrains/sample_generator/ecoli_sim/2strains_rita_far_error0/"
+NAME_OF_LEFT_READ = "r1.fastq"
+NAME_OF_RIGHT_READ = "r2.fastq"
+PATH_TO_REFERENCE = "../../refs/H6.fasta"
+# dir with reference must contain bwa index
+
+#_____________________________________________________________________________
+
+
+rule all:
+    input:
+        "top_k_trees"
+
+
+rule bwa_map:
+    input:
+        PATH_TO_REFERENCE,
+        DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_LEFT_READ,
+        DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_RIGHT_READ
+    output:
+        "mapped_reads/{sample}.bam"
+    log:
+        "logs/bwa_map/{sample}.log"
+    shell:
+        "(bwa mem -t 16 {input} -T 0 -A 1 -B 10 -O 200 -L 200"
+        " | samtools view -Sb -F 516 -f 3 -q 1 - > {output}) 2> {log}"
+
+
+rule samtools_sort:
+    input:
+        "mapped_reads/{sample}.bam"
+    output:
+        "sorted_reads/{sample}.bam"
+    log:
+        "logs/samtools_sort/{sample}.log"
+    shell:
+        "samtools sort -T sorted_reads/{wildcards.sample} "
+        "-O bam {input} > {output} 2> {log}"
+
+
+rule samtools_mpileup:
+    input:
+        fa = PATH_TO_REFERENCE,
+        bam = expand("sorted_reads/{sample}.bam", sample=SAMPLES)
+    output:
+        "calls/all.pileup"
+    log:
+        "logs/samtools_mpileup.log"
+    shell:
+        "samtools mpileup -B -f {input.fa} {input.bam} > {output} 2> {log}"
+
+
+rule varscan:
+    input:
+        "calls/all.pileup"
+    output:
+        "calls/all.varscan"
+    log:
+        "logs/varscan.log"
+    shell:
+        "java -jar /home/novitskayam/tools/VarScan.v2.3.9.jar mpileup2snp "
+        "{input} > {output} 2> {log}"
+
+
+rule make_matrices:
+    input:
+        "calls/all.varscan"
+    output:
+        "matrices/R_all",
+        "matrices/X_all"
+    log:
+        "logs/make_matrices.log"
+    shell:
+        "python ../../scripts/varscan_to_matrices.py "
+        "{input} {output} &> {log}"
+
+
+rule matrices_to_phylowgs_input:
+    input:
+        "matrices/R_all",
+        "matrices/X_all"
+    output:
+        "matrices/ssm_data",
+        "matrices/cnv_data"
+    log:
+        "logs/matrices_to_phylowgs_input.log"
+    shell:
+        "python ../../scripts/to_phylowgs_format.py "
+        "{input} {output} &> {log}"
+
+
+rule run_phylowgs:
+    input:
+        "matrices/ssm_data",
+        "matrices/cnv_data"
+    output:
+        "top_k_trees"
+    log:
+        "logs/run_phylowgs.log"
+    shell:
+        "python2 /home/novitskayam/tools/phylowgs_master/evolve.py "
+        "{input} &> {log}"
+
