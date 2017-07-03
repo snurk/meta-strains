@@ -1,0 +1,66 @@
+SAMPLES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]
+DIR_WITH_SAMPLES = "/Molly/snurk/infant_gut/"
+NAME_OF_LEFT_READ = "left.fastq.gz"
+NAME_OF_RIGHT_READ = "right.fastq.gz"
+OUTPUTDIR = "midas_infant_gut"
+
+#_____________________________________________________________________________
+
+
+rule all:
+    input:
+        OUTPUTDIR + "/merged_snps/snps_summary.txt"
+
+
+rule mkdir:
+    input:
+        left_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_LEFT_READ,
+        right_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_RIGHT_READ
+    output:
+        OUTPUTDIR + "/samples/sample{sample}"
+    shell:
+        "mkdir {output}"
+
+
+rule species:
+    input:
+        left_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_LEFT_READ,
+        right_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_RIGHT_READ,
+        cur_dir = OUTPUTDIR + "/samples/sample{sample}"
+    output:
+        OUTPUTDIR + "/samples/sample{sample}/species/species_profile.txt"
+    log:
+        OUTPUTDIR + "/logs/species/{sample}.log"
+    shell:
+        "(run_midas.py species {input.cur_dir} "
+        "-1 {input.left_read} -2 {input.right_read} "
+        "-t 16 --remove_temp) &> {log}"
+
+
+rule snps:
+    input:
+        left_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_LEFT_READ,
+        right_read = DIR_WITH_SAMPLES + "sample{sample}/" + NAME_OF_RIGHT_READ,
+        cur_dir = OUTPUTDIR + "/samples/sample{sample}",
+        flag = OUTPUTDIR + "/samples/sample{sample}/species/species_profile.txt"
+    output:
+        OUTPUTDIR + "/samples/sample{sample}/snps/summary.txt"
+    log:
+        OUTPUTDIR + "/logs/snps/{sample}.log"
+    shell:
+        "(run_midas.py snps {input.cur_dir} "
+        "-1 {input.left_read} -2 {input.right_read} "
+        "-t 16 --remove_temp) &> {log}"
+
+
+rule merge:
+    input:
+        expand(OUTPUTDIR + "/samples/sample{sample}/snps/summary.txt", sample=SAMPLES)
+    output:
+        OUTPUTDIR + "/merged_snps/snps_summary.txt"
+    log:
+        OUTPUTDIR + "/logs/merge.log"
+    shell:
+        "(merge_midas.py snps {OUTPUTDIR}/merged_snps "
+        "-i {OUTPUTDIR}/samples -t dir --threads 6 "
+        "--site_maf 0.05) &> {log}"
