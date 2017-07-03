@@ -9,6 +9,7 @@ CLONE_NUMBERS = ["3", "4", "5", "6"]
 min_C = min(CLONE_NUMBERS)
 max_C = max(CLONE_NUMBERS)
 NUM_OF_EM = 500
+NUM_OF_SNPs = 100
 
 #_____________________________________________________________________________
 
@@ -92,7 +93,7 @@ rule filter_matrices:
         "logs/filter_matrices.log"
     shell:
         "python ../../scripts/filter_matrices.py "
-        "{input} {output} &> {log}"
+        "{input} {output} {NUM_OF_SNPs} &> {log}"
 
 
 rule run_clomial:
