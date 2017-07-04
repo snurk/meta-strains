@@ -9,7 +9,7 @@ OUTPUTDIR = "midas_infant_gut"
 
 rule all:
     input:
-        OUTPUTDIR + "/merged_snps/snps_summary.txt"
+        OUTPUTDIR + "/done.txt"
 
 
 rule mkdir:
@@ -57,7 +57,7 @@ rule merge:
     input:
         expand(OUTPUTDIR + "/samples/sample{sample}/snps/summary.txt", sample=SAMPLES)
     output:
-        OUTPUTDIR + "/merged_snps/snps_summary.txt"
+        touch(OUTPUTDIR + "/done.txt")
     log:
         OUTPUTDIR + "/logs/merge.log"
     shell:
