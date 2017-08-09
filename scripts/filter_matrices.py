@@ -114,9 +114,13 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
 
     # N = (nt) (len(f) * 0.005)
     # print(N)
-    N = 100
+    N = 500
 
     clusterer = hdbscan.HDBSCAN(min_cluster_size=N, min_samples=1).fit(cur_f)
+    
+    #debug
+    print("Number of clusters:")
+    print(len(set(clusterer.labels_)))
 
     plt.figure(figsize=(15, 8))
     ax = plt.gca()
@@ -128,7 +132,7 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
     else:
         plt.title("Clustering initial frequencies")
 
-    color_palette = sns.color_palette("Set2", 20)
+    color_palette = sns.color_palette("Set2", 50)
     cluster_colors = [color_palette[x] if x >= 0
                       else (0.5, 0.5, 0.5)
                       for x in clusterer.labels_]
@@ -162,7 +166,7 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
         f_with_labels = np.hstack([f_with_labels, clusterer.labels_.reshape(len(f_with_labels), 1)])
         col = f_with_labels[:, -1]
         idx = (col == i)
-        print(i, np.round(np.median(f_with_labels[idx, :-1], axis=0), 2))
+        #print(i, np.round(np.median(f_with_labels[idx, :-1], axis=0), 2))
 
     plt.savefig("logs/clusterization.png")
 
@@ -228,7 +232,7 @@ def main():
 
     f = f[good_coverage, :]
 
-    clusterization(f, x, r, args.x_new, args.r_new, args.num_of_filtered_snps, pca=True, num_of_comp=5)
+    clusterization(f, x, r, args.x_new, args.r_new, args.num_of_filtered_snps, pca=True, num_of_comp=2)
 
 
 if __name__ == '__main__':
