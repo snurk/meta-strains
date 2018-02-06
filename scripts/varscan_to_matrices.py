@@ -22,7 +22,7 @@ with open(sys.argv[1], "r") as file_varscan, \
                 flag_2_alleles = False
                 break
 
-            if int(info[1]) - (int(info[2]) + int(info[3])) == 0:  # <= 3:
+            if int(info[1]) - (int(info[2]) + int(info[3])) <= 3:  # == 0:
                 cur_r.append(info[1])
                 cur_x.append(info[3])
             else:

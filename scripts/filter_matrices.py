@@ -142,6 +142,7 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
 
     not_outliers = np.where(clusterer.labels_ != -1)[0]
     f_no_outliers = f[not_outliers, :]
+    f_pca_no_outliers = f_pca[not_outliers, :]
     x_no_outliers = x[not_outliers, :]
     r_no_outliers = r[not_outliers, :]
     labels_no_outliers = clusterer.labels_[not_outliers]
@@ -149,7 +150,7 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
     subs_ind = subsample_from_cluters(how_many_remain, labels_no_outliers)
 
     plt.scatter(f_pca[:, 0], f_pca[:, 1], s=10, linewidth=0, c=cluster_colors, alpha=0.3)
-    plt.scatter(f_pca[subs_ind, 0], f_pca[subs_ind, 1], s=10, linewidth=0, c="black", alpha=1)
+    plt.scatter(f_pca_no_outliers[subs_ind, 0], f_pca_no_outliers[subs_ind, 1], s=10, linewidth=0, c="black", alpha=1)
     plt.savefig("logs/clusters.png")
 
     np.savetxt(r_new, r_no_outliers[subs_ind, :], fmt='%s')
@@ -166,9 +167,7 @@ def clusterization(f, x, r, x_new, r_new, how_many_remain, pca=True, num_of_comp
         f_with_labels = np.hstack([f_with_labels, clusterer.labels_.reshape(len(f_with_labels), 1)])
         col = f_with_labels[:, -1]
         idx = (col == i)
-        #print(i, np.round(np.median(f_with_labels[idx, :-1], axis=0), 2))
-
-    plt.savefig("logs/clusterization.png")
+        print(i, np.round(np.median(f_with_labels[idx, :-1], axis=0), 2))
 
 #________________________________________________________________________________________________________
 
@@ -231,6 +230,8 @@ def main():
     draw_PCA(f_pca, good_coverage)
 
     f = f[good_coverage, :]
+    x = x[good_coverage, :]
+    r = r[good_coverage, :]
 
     clusterization(f, x, r, args.x_new, args.r_new, args.num_of_filtered_snps, pca=True, num_of_comp=2)
 

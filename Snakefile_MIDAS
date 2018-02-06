@@ -62,5 +62,4 @@ rule merge:
         OUTPUTDIR + "/logs/merge.log"
     shell:
         "(merge_midas.py snps {OUTPUTDIR}/merged_snps "
-        "-i {OUTPUTDIR}/samples -t dir --threads 6 "
-        "--site_maf 0.05) &> {log}"
+        "-i {OUTPUTDIR}/samples -t dir --threads 6) &> {log}"
