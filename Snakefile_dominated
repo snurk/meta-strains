@@ -1,0 +1,113 @@
+SAMPLES = ["sample"+str(i) for i in range(1,12)]
+DIR_WITH_SAMPLES = "/Sid/snurk/mts/data/infant_gut/"
+NAME_OF_LEFT_READ = "left.fastq.gz"
+NAME_OF_RIGHT_READ = "right.fastq.gz"
+
+
+PATH_TO_CONTIGS = "/Sid/ygorshkov/mts/multi-ig/main_concoct/reassembly/BIN28/contigs.fasta"
+
+PATH_TO_SCRIPTS = "~/meta-strains/scripts"
+CONTIGS_MIN_LEN = 10000
+
+
+#_____________________________________________________________________________
+
+
+rule all:
+    input:
+        expand("hists/{sample}.png", sample=SAMPLES),
+        "dominated_genotypes.png",
+        #"dominated_analysis.txt"
+
+
+rule cp_long_contigs:
+    input:
+        PATH_TO_CONTIGS
+    output:
+        "contigs/contigs.fa"
+    log:
+        "logs/cp_long_contigs.log"
+    shell:
+        "(python {PATH_TO_SCRIPTS}/scripts_for_desman/cp_long_contigs.py {input} {output} {CONTIGS_MIN_LEN}) 2> {log}"
+
+
+rule bwa_index:
+    input:
+        "contigs/contigs.fa"
+    output:
+        "contigs/contigs.fa.amb",
+        "contigs/contigs.fa.ann",
+        "contigs/contigs.fa.bwt",
+        "contigs/contigs.fa.pac",
+        "contigs/contigs.fa.sa"
+    log:
+        "logs/bwa_index.log"
+    shell:
+        "(bwa index {input}) 2> {log}"
+
+
+rule bwa_map:
+    input:
+        contigs = "contigs/contigs.fa",
+        index = lambda wildcards: expand("contigs/contigs.fa.{ext}",
+                ext=["amb", "ann", "bwt", "pac", "sa"]),
+        R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
+        R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
+    output:
+        "mapped_reads/{sample}.bam"
+    log:
+        "logs/bwa_map/{sample}.log"
+    shell:
+        "(bwa mem -t 16 {input.contigs} {input.R1} {input.R2}" 
+        " | samtools view -bS - > {output}) 2> {log}"
+
+
+rule samtools_sort:
+    input:
+        "mapped_reads/{sample}.bam"
+    output:
+        "sorted_reads/{sample}.bam"
+    log:
+        "logs/samtools_sort/{sample}.log"
+    shell:
+        "samtools sort -T sorted_reads/{wildcards.sample} "
+        "-O bam {input} > {output} 2> {log}"
+
+
+rule samtools_mpileup:
+    input:
+        fa = "contigs/contigs.fa",
+        bam = expand("sorted_reads/{sample}.bam", sample=SAMPLES)
+    output:
+        "calls/all.pileup"
+    log:
+        "logs/samtools_mpileup.log"
+    shell:
+        "samtools mpileup -B -f {input.fa} {input.bam} > {output} 2> {log}"
+
+
+rule varscan:
+    input:
+        "calls/all.pileup"
+    output:
+        "calls/all.varscan"
+    log:
+        "logs/varscan.log"
+    shell:
+        "java -jar /home/makseshina/tools/VarScan.v2.3.9.jar mpileup2snp {input} "
+        "--min-coverage	10 --min-reads2 5 --min-var-freq 0.02 > {output} 2> {log}"
+
+
+rule analyze_dominated:
+    input:
+        "calls/all.varscan"
+    output:
+        expand("hists/{sample}.png", sample=SAMPLES),
+        "dominated_genotypes.png"
+    log:
+        "dominated_analysis.txt"
+    params:
+        samples_list = ','.join(SAMPLES)
+    shell:
+        "python {PATH_TO_SCRIPTS}/dominated.py "
+        "{input} {params.samples_list} > {log}"
