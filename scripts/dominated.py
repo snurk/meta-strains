@@ -28,10 +28,14 @@ def find_margin(VAFs, sample_name=None, within_margin=0.05, eps=0.01):
 
     if margin > 0.5:
         margin = 0.5
+    
+    if len(VAFs) < 500:
+        print("Very few SNVs")
+    else:
+        print("%.2f - %.2f" % (0.5-margin, 0.5+margin))
+        print('margin = %.2f' % margin)
 
-    print('margin = %.2f' % margin)
-
-    if 0.5 + margin >= 0.7:
+    if 0.5 + margin >= 0.7 or len(VAFs) < 500:
         color = 'red'
         print('DOMINATED')
         res = True
@@ -40,15 +44,13 @@ def find_margin(VAFs, sample_name=None, within_margin=0.05, eps=0.01):
         print('NOT dominated')
         res = False
         
-    print("%.2f - %.2f" % (0.5-margin, 0.5+margin))
-
     plt.hist(VAFs, 50, alpha=0.5, color=color);
     plt.xlim((0, 1))
     plt.xlabel('SNV frequencies')
     plt.title(sample_name)
     plt.savefig("hists/%s.png" % sample_name)
     
-    return(res)
+    return res
 
 
 def filter_by_coverage(depth, vafs, bad_percentile=0.3, good_samples_percent=0.8):
@@ -111,11 +113,11 @@ def main():
     genotypes = df_dominated_VAF[selected_SNVs] > 0.5
     genotypes = genotypes[(genotypes.sum(axis=1) > 0) & (genotypes.sum(axis=1) < len(dominated_samples))] #remove non-informative sites
 
-    g = sns.clustermap(genotypes.T, 
-                       xticklabels = False, 
-                       yticklabels=[sample_names[i] for i in dominated_samples])
-    plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
-    g.cax.set_visible(False)
+    #g = sns.clustermap(genotypes.T, 
+    #                   xticklabels = False, 
+    #                   yticklabels=[sample_names[i] for i in dominated_samples])
+    #plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
+    #g.cax.set_visible(False)
     plt.suptitle('%i SNVs' % len(genotypes))
     plt.savefig("dominated_genotypes.png")
 
