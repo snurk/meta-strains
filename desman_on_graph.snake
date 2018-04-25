@@ -1,26 +1,39 @@
-SAMPLES = ["sample"+str(i) for i in range(1,12)]
-DIR_WITH_SAMPLES = "/Nancy/makseshina/raw_data/3ecoli_1Mbp/"
-NAME_OF_LEFT_READ = "r1.fastq"
-NAME_OF_RIGHT_READ = "r2.fastq"
+experiment_name = "g3_r1"
 
-ASSEMBLER_DIR = "~/tools/algorithmic-biology/assembler/bin"
+DIR_WITH_SAMPLES = "/Nancy/makseshina/raw_data/SINTETIC_mixes/{exp_name}/".format(exp_name=experiment_name)
+PROFILE = "/Nancy/makseshina/raw_data/SINTETIC_mixes/profiles/mix_{exp_name}.csv".format(exp_name=experiment_name)
 
-PATH_TO_SCRIPTS = "~/meta-strains/scripts/scripts_for_desman"
+import pandas as pd
+profile_df = pd.read_csv(PROFILE, header=None)
+REFS = ["/Nancy/makseshina/raw_data/__refs_for_generation/ecoli_refs/{strain}.fasta".format(strain=strain_name) 
+                                                                                    for strain_name in profile_df[0]]
+
+FINAL_K = 77
+READ_LENGTH = 100
+
+N_SAMPLES = 10
+SAMPLES = ["sample"+str(i) for i in range(1,N_SAMPLES+1)]
+NAME_OF_LEFT_READ = "s-R1.fastq"
+NAME_OF_RIGHT_READ = "s-R2.fastq"
+
 CONTIGS_MIN_LEN = 10000
-
 NUM_SNVs = 3000
 
-DESMAN_DIR = "/home/makseshina/tools/DESMAN"
+REAL_G = len(REFS)
 
-GENOMES_RANGE = [3]
+GENOMES_RANGE = range(REAL_G-1+int(REAL_G==2), REAL_G+3)
 SEEDS = [0]
 
-SELECTED_G = 3
+SELECTED_G = REAL_G
 SELECTED_SEED = 0
 
 left_reads  = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_LEFT_READ,  sample=SAMPLES)
 right_reads = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_RIGHT_READ, sample=SAMPLES)
 
+
+ASSEMBLER_DIR = "~/tools/algorithmic-biology/assembler/bin"
+DESMAN_DIR = "/home/makseshina/tools/DESMAN"
+PATH_TO_SCRIPTS = "~/meta-strains/scripts/scripts_for_desman"
 
 def is_fastq(read_file_name):
     for ext in {".fastq", ".fq", ".fastq.gz", "fq.gz"}:
@@ -28,15 +41,16 @@ def is_fastq(read_file_name):
             return True
     return False
 
-
-
 #_____________________________________________________________________________
 
 
 rule all:
     input:
-        "desman_results/Dev.pdf",
-        "desman_results/gene_assignment_etaS_df.csv"
+        "desman_results/Dev.pdf", "logs/desman_gene_assign/final.log",
+        "refs/refs_edges.txt", "refs/profile.csv", "edges_lengths.tsv"
+    shell:
+        # delete all empty directories
+        "find . -type d -empty -delete"
 
 
 rule spades:
@@ -44,20 +58,19 @@ rule spades:
         left_reads,
         right_reads
     output:  
-        "assembly/contigs.fasta"
+        "assembly/contigs.fasta",
+        "assembly/K{K}/saves/00_before_repeat_resolution/graph_pack.sqn".format(K=FINAL_K)
     params:  
         left  = " ".join(expand("-1 {r}", r=left_reads)),
         right = " ".join(expand("-2 {r}", r=right_reads)),
         dir = "assembly/", 
         bh = "" if is_fastq(NAME_OF_LEFT_READ) else "--only-assembler"
-    threads: 
-        64 #THREADS
     log:     
         "logs/spades.log"
     message: 
         "Assembling all samples together with metaSPAdes"
     shell:   
-        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -m 400 -t {threads}"
+        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -8 --phred-offset 33 -k 21,33,55,77"
         " {params.left} {params.right}"
         " --save-gp -o {params.dir} >{log} 2>&1 "
 
@@ -68,7 +81,7 @@ rule cp_long_contigs:
     input:
         "assembly/contigs.fasta"
     output:
-        "contigs/contigs.fa"
+        "long_contigs/long_contigs.fa"
     log:
         "logs/cp_long_contigs.log"
     shell:
@@ -77,13 +90,13 @@ rule cp_long_contigs:
 
 rule bwa_index:
     input:
-        "contigs/contigs.fa"
+        "long_contigs/long_contigs.fa"
     output:
-        "contigs/contigs.fa.amb",
-        "contigs/contigs.fa.ann",
-        "contigs/contigs.fa.bwt",
-        "contigs/contigs.fa.pac",
-        "contigs/contigs.fa.sa"
+        "long_contigs/long_contigs.fa.amb",
+        "long_contigs/long_contigs.fa.ann",
+        "long_contigs/long_contigs.fa.bwt",
+        "long_contigs/long_contigs.fa.pac",
+        "long_contigs/long_contigs.fa.sa"
     log:
         "logs/bwa_index.log"
     shell:
@@ -92,13 +105,13 @@ rule bwa_index:
 
 rule bwa_map:
     input:
-        contigs = "contigs/contigs.fa",
-        index = lambda wildcards: expand("contigs/contigs.fa.{ext}",
+        contigs = "long_contigs/long_contigs.fa",
+        index = lambda wildcards: expand("long_contigs/long_contigs.fa.{ext}",
                 ext=["amb", "ann", "bwt", "pac", "sa"]),
         R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
         R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
     output:
-        "mapped_reads/{sample}.bam"
+        temp("mapped_reads/{sample}.bam")
     log:
         "logs/bwa_map/{sample}.log"
     shell:
@@ -110,20 +123,20 @@ rule samtools_sort:
     input:
         "mapped_reads/{sample}.bam"
     output:
-        "sorted_reads/{sample}.bam"
+        temp("sorted_reads/{sample}.bam")
     log:
         "logs/samtools_sort/{sample}.log"
     shell:
-        "samtools sort -T sorted_reads/{wildcards.sample} "
-        "-O bam {input} > {output} 2> {log}"
+        "samtools sort -T sorted_reads/{wildcards.sample}"
+        " -O bam {input} > {output} 2> {log}"
 
 
 rule samtools_mpileup:
     input:
-        fa = "contigs/contigs.fa",
+        fa = "long_contigs/long_contigs.fa",
         bam = expand("sorted_reads/{sample}.bam", sample=SAMPLES)
     output:
-        "calls/all.pileup"
+        temp("calls/all.pileup")
     log:
         "logs/samtools_mpileup.log"
     shell:
@@ -157,15 +170,16 @@ rule select_sites:
 rule bam_readcount:
     input:
         sites_list = "calls/selected_sites.tsv",
-        fasta = "contigs/contigs.fa",
+        fasta = "long_contigs/long_contigs.fa",
         bam_file = "sorted_reads/{sample}.bam"
     output:
-        counts = "counts/{sample}.cnt"
+        temp("counts/{sample}.cnt")
     log:
         "logs/bam_readcount/{sample}.log"
     shell:
         "samtools index {input.bam_file} {input.bam_file}.bai; "
-        "bam-readcount -l {input.sites_list} -f {input.fasta} {input.bam_file} 2> {log} > {output}"
+        "bam-readcount -l {input.sites_list} -f {input.fasta} {input.bam_file} 2> {log} > {output}; "
+        "rm {input.bam_file}.bai"
 
 
 rule extract_counts:
@@ -196,12 +210,9 @@ rule desman_variant_filter:
 rule run_desman:
     input:
         sel_var = "desman_input/freqs.csv",
-        #tran_df = "desman_input/filtered_tran_df.csv"
     output:
         desman_results = expand("desman_results/{{g}}_{{r}}/{file_type}",
                                 file_type = ["log_file.txt", "fit.txt", "Gamma_star.csv", "Eta_star.csv"])
-        #gamma_star = "desman_results/{g}_{r}/Gamma_star.csv".format(g=SELECTED_G, r=SELECTED_SEED),
-        #eta_star = "desman_results/{g}_{r}/Eta_star.csv".format(g=SELECTED_G, r=SELECTED_SEED)
     log:
         "logs/desman_results/{g}_{r}.log"
     params:
@@ -233,26 +244,41 @@ rule plot_dev:
 
 #____ASSIGN_EDGES_TO_DIFFERENT_STRAINS_BY_DESMAN_________________________________________
 
+
+rule gen_dataset_yaml:
+    input:
+        left_reads,
+        right_reads
+    output:
+        "input_dataset.yaml"
+    log:
+        "logs/gen_dataset_yaml.log"
+    shell:
+        "python {PATH_TO_SCRIPTS}/gen_dataset_yaml.py {N_SAMPLES} {input}  > {output}"
+
+
 rule count_edges_kmer_cov:
     input:
-        # TODO: correct
-        "assembly/contigs.fasta"
+        contigs = "assembly/contigs.fasta",
+	yaml = "input_dataset.yaml"
     output:
         "desman_input/edge_profiles.txt"
     log:
         "logs/count_edges_kmer_cov.log"
     shell:
-        "~/tools/algorithmic-biology_sydney/assembler/build/release/bin/strain_mix_from_graph "
-        " -g assembly/K55/saves/00_before_repeat_resolution/graph_pack -d input_dataset_2.yaml -p {output} -t 8"
+        "(~/tools/algorithmic-biology_sydney/assembler/build/release/bin/strain_mix_from_graph -k {FINAL_K}"
+        " -g assembly/K{FINAL_K}/saves/00_before_repeat_resolution/graph_pack -d {input.yaml} -p {output} -t 8) 2> {log}"
 
 
 rule count_edges_read_cov:
     input:
-        "desman_input/edge_profiles.txt"
+        profile = "desman_input/edge_profiles.txt"
+    params:
+        sample_names = ",".join(SAMPLES)
     output:
         "desman_input/edge_profiles.read_cov.txt"
     shell:
-        "python ~/meta-strains/scripts/to_read_cov.py {input} {output}"
+        "python ~/meta-strains/scripts/to_read_cov.py {input.profile} {output} {params.sample_names} -k {FINAL_K} -r {READ_LENGTH}"
 
 
 rule make_mean_sd_df:
@@ -267,18 +293,84 @@ rule make_mean_sd_df:
 rule desman_gene_assign:
     input:
         mean_sd_df = "desman_input/mean_sd_df.csv",
-        gamma_star = "desman_results/{g}_{r}/Gamma_star.csv".format(g=SELECTED_G, r=SELECTED_SEED),
+        gamma_star = "desman_results/{g}_{r}/Gamma_star.csv",
         edge_profiles = "desman_input/edge_profiles.read_cov.txt",
-        eta_star = "desman_results/{g}_{r}/Eta_star.csv".format(g=SELECTED_G, r=SELECTED_SEED),
+        eta_star = "desman_results/{g}_{r}/Eta_star.csv",
         snv_freqs = "desman_input/freqs.csv"
     output:
-        "desman_results/gene_assignment_etaS_df.csv"
+        "desman_results/{g}_{r}/gene_assignment_etaS_df.csv"
     log:
-        "logs/desman_gene_assign.log"
+        "logs/desman_gene_assign/{g}_{r}.log"
     params:
-        desman_python2_env = "desman_2"
+        desman_python2_env = "desman_2",
+        output_prefix = "desman_results/{g}_{r}/gene_assignment_"
     shell:
         "set +u; source activate {params.desman_python2_env}; set -u;"
         " python {DESMAN_DIR}/desman/GeneAssign.py"
         " {input.mean_sd_df} {input.gamma_star} {input.edge_profiles} {input.eta_star} -v {input.snv_freqs}"
-        " -o desman_results/gene_assignment_ --assign_tau > {log}"
+        " -o {params.output_prefix} --assign_tau > {log}"
+
+
+rule run_all_gene_assign:
+    input: lambda wildcards: expand("desman_results/{g}_{r}/gene_assignment_etaS_df.csv", \
+            g = GENOMES_RANGE, \
+            r = SEEDS)
+    output:
+        "logs/desman_gene_assign/final.log"
+    shell:
+        "echo All works were done  > {output}"
+
+
+
+#____VALIDATE_DESMAN_RESULTS_____________________________________________________________
+
+
+rule sort_desman_freqs:
+    input:
+        "desman_results/{g}_{r}/Gamma_star.csv".format(g=SELECTED_G, r=SELECTED_SEED)
+    output:
+        "desman_results/{g}_{r}/desman_freqs.csv".format(g=SELECTED_G, r=SELECTED_SEED)
+    shell:
+        "python {PATH_TO_SCRIPTS}/sort_desman_freqs.py {input} {output}"
+
+
+rule concat_refs:
+    input:
+        REFS
+    output:
+        "refs/all_refs.fasta"
+    shell:
+        "python {PATH_TO_SCRIPTS}/concat_refs.py {output} {input}"
+
+
+rule thread_refs:
+    input:
+        refs = "refs/all_refs.fasta",
+        assembly_flag = "assembly/contigs.fasta"
+    output:
+        edges = "refs/refs_edges.txt",
+        paths = "refs/refs_paths.txt"
+    log:
+        "logs/thread_refs.log"
+    shell:
+        "(~/tools/algorithmic-biology_sydney/assembler/build/release/bin/sequence_threader -k {FINAL_K}"
+        " -g assembly/K{FINAL_K}/saves/00_before_repeat_resolution/graph_pack -q {input.refs}"
+        " -p {output.paths} -e {output.edges}) > {log}"
+
+
+rule copy_profile:
+    input:
+        PROFILE
+    output:
+        "refs/profile.csv"
+    shell:
+        "cp {input} {output}"
+
+
+rule count_edges_length:
+    input:
+        "assembly/K{K}/saves/00_before_repeat_resolution/graph_pack.sqn".format(K=FINAL_K)
+    output:
+        "edges_lengths.tsv"
+    shell:
+        "python {PATH_TO_SCRIPTS}/edges_lengths.py {input} {output}"
