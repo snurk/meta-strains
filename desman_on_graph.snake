@@ -70,7 +70,7 @@ rule spades:
     message: 
         "Assembling all samples together with metaSPAdes"
     shell:   
-        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -8 --phred-offset 33 -k 21,33,55,77"
+        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -t 8 --phred-offset 33 -k 21,33,55,77"
         " {params.left} {params.right}"
         " --save-gp -o {params.dir} >{log} 2>&1 "
 
