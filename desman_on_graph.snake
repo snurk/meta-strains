@@ -1,20 +1,21 @@
-experiment_name = "g3_r1"
+experiment_name = "g4_r1"
 
-DIR_WITH_SAMPLES = "/Nancy/makseshina/raw_data/SINTETIC_mixes/{exp_name}/".format(exp_name=experiment_name)
-PROFILE = "/Nancy/makseshina/raw_data/SINTETIC_mixes/profiles/mix_{exp_name}.csv".format(exp_name=experiment_name)
+DIR_WITH_SAMPLES = "/Nancy/makseshina/raw_data/SINTETIC_mixes_150/{exp_name}/".format(exp_name=experiment_name)
+PROFILE = "/Nancy/makseshina/raw_data/SINTETIC_mixes_150/profiles/mix_{exp_name}.csv".format(exp_name=experiment_name)
 
 import pandas as pd
 profile_df = pd.read_csv(PROFILE, header=None)
-REFS = ["/Nancy/makseshina/raw_data/__refs_for_generation/ecoli_refs/{strain}.fasta".format(strain=strain_name) 
+REFS = ["/Nancy/makseshina/raw_data/__refs_for_generation/ecoli_refs/{strain}.fasta".format(strain=strain_name)
                                                                                     for strain_name in profile_df[0]]
 
-FINAL_K = 77
-READ_LENGTH = 100
+FINAL_K = 127
+READ_LENGTH = 150
 
-N_SAMPLES = 10
+N_SAMPLES = 3
 SAMPLES = ["sample"+str(i) for i in range(1,N_SAMPLES+1)]
 NAME_OF_LEFT_READ = "s-R1.fastq"
 NAME_OF_RIGHT_READ = "s-R2.fastq"
+
 
 CONTIGS_MIN_LEN = 10000
 NUM_SNVs = 3000
@@ -27,8 +28,11 @@ SEEDS = [0]
 SELECTED_G = REAL_G
 SELECTED_SEED = 0
 
-left_reads  = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_LEFT_READ,  sample=SAMPLES)
-right_reads = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_RIGHT_READ, sample=SAMPLES)
+LEFT_READS  = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_LEFT_READ,  sample=SAMPLES)
+RIGHT_READS = expand(DIR_WITH_SAMPLES+"{sample}/"+NAME_OF_RIGHT_READ, sample=SAMPLES)
+
+CORRECTED_LEFT_READS  = ["assembly/corrected/s-R1.00.0_%i.cor.fastq.gz" % i for i in range(N_SAMPLES)]
+CORRECTED_RIGHT_READS = ["assembly/corrected/s-R2.00.0_%i.cor.fastq.gz" % i for i in range(N_SAMPLES)]
 
 
 ASSEMBLER_DIR = "~/tools/algorithmic-biology/assembler/bin"
@@ -46,23 +50,35 @@ def is_fastq(read_file_name):
 
 rule all:
     input:
-        "desman_results/Dev.pdf", "logs/desman_gene_assign/final.log",
-        "refs/refs_edges.txt", "refs/profile.csv", "edges_lengths.tsv"
+        "edges_analysis.ipynb"
     shell:
         # delete all empty directories
-        "find . -type d -empty -delete"
+        "find . -type d -empty -delete &"
+
+
+rule analyse_results:
+    input:
+        "desman_results/Dev.pdf", "logs/desman_gene_assign/final.log", "logs/sort_all_desman_freqs.log",
+        "refs/refs_edges.txt", "refs/profile.csv", "edges_lengths.tsv"
+    output:
+        "edges_analysis.ipynb"
+    shell:
+        "cp {PATH_TO_SCRIPTS}/edges_analysis.ipynb {output} && jupyter nbconvert --execute --to notebook --inplace {output}"
+
 
 
 rule spades:
     input:   
-        left_reads,
-        right_reads
+        LEFT_READS,
+        RIGHT_READS
     output:  
         "assembly/contigs.fasta",
-        "assembly/K{K}/saves/00_before_repeat_resolution/graph_pack.sqn".format(K=FINAL_K)
+        "assembly/K{K}/saves/00_before_repeat_resolution/graph_pack.sqn".format(K=FINAL_K),
+        CORRECTED_LEFT_READS,
+        CORRECTED_RIGHT_READS
     params:  
-        left  = " ".join(expand("-1 {r}", r=left_reads)),
-        right = " ".join(expand("-2 {r}", r=right_reads)),
+        left  = " ".join(expand("-1 {r}", r=LEFT_READS)),
+        right = " ".join(expand("-2 {r}", r=RIGHT_READS)),
         dir = "assembly/", 
         bh = "" if is_fastq(NAME_OF_LEFT_READ) else "--only-assembler"
     log:     
@@ -70,7 +86,7 @@ rule spades:
     message: 
         "Assembling all samples together with metaSPAdes"
     shell:   
-        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -t 8 --phred-offset 33 -k 21,33,55,77"
+        "{ASSEMBLER_DIR}/spades.py {params.bh} --meta -t 8 --phred-offset 33 -k 33,55,77,99,127"
         " {params.left} {params.right}"
         " --save-gp -o {params.dir} >{log} 2>&1 "
 
@@ -108,8 +124,10 @@ rule bwa_map:
         contigs = "long_contigs/long_contigs.fa",
         index = lambda wildcards: expand("long_contigs/long_contigs.fa.{ext}",
                 ext=["amb", "ann", "bwt", "pac", "sa"]),
-        R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
-        R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
+        R1 = lambda wildcards: "assembly/corrected/s-R1.00.0_{s}.cor.fastq.gz".format(s=int(wildcards.sample.replace("sample",""))-1),
+        R2 = lambda wildcards: "assembly/corrected/s-R2.00.0_{s}.cor.fastq.gz".format(s=int(wildcards.sample.replace("sample",""))-1)
+        #R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
+        #R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
     output:
         temp("mapped_reads/{sample}.bam")
     log:
@@ -247,8 +265,8 @@ rule plot_dev:
 
 rule gen_dataset_yaml:
     input:
-        left_reads,
-        right_reads
+        CORRECTED_LEFT_READS,
+        CORRECTED_RIGHT_READS
     output:
         "input_dataset.yaml"
     log:
@@ -318,7 +336,7 @@ rule run_all_gene_assign:
     output:
         "logs/desman_gene_assign/final.log"
     shell:
-        "echo All works were done  > {output}"
+        "echo All works were done > {output}"
 
 
 
@@ -327,11 +345,20 @@ rule run_all_gene_assign:
 
 rule sort_desman_freqs:
     input:
-        "desman_results/{g}_{r}/Gamma_star.csv".format(g=SELECTED_G, r=SELECTED_SEED)
+        "desman_results/{g}_{r}/Gamma_star.csv"
     output:
-        "desman_results/{g}_{r}/desman_freqs.csv".format(g=SELECTED_G, r=SELECTED_SEED)
+        "desman_results/{g}_{r}/desman_freqs.csv"
     shell:
         "python {PATH_TO_SCRIPTS}/sort_desman_freqs.py {input} {output}"
+
+
+rule sort_all_desman_freqs:
+    input:
+        expand("desman_results/{g}_{r}/desman_freqs.csv", g=GENOMES_RANGE, r=SEEDS)
+    output:
+        "logs/sort_all_desman_freqs.log"
+    shell:
+        "echo All works were done > {output}"
 
 
 rule concat_refs:
