@@ -46,7 +46,7 @@ def gen_samples(args):
                     num_reads=profile[cur_g, cur_s], 
                     output=os.path.join(sample_dir, 'R{}.fastq'.format(order))))
                 
-                #TODO: why it doesn't work?
+                #TODO: why is it not working?
                 #reads_file = open(os.path.join(curdir, 'R{}.fastq'.format(order)), 'a')
                 #subprocess.check_call(["~/tools/seqtk/seqtk sample", "-s", str(seed), input_file, str(num_reads)], shell=True, stdout=reads_file)
     
@@ -54,7 +54,7 @@ def gen_samples(args):
 
 parser = argparse.ArgumentParser(description="Metagenomic sampler from isolates experiments")
 
-parser.add_argument("profile", type=str, help="File with reference profiles")
+parser.add_argument("profile", type=str, help="File with coverage profiles (first column should be the num of an experiment)")
 parser.add_argument("--input-dir", "-i", type=str, required=True, help="Directory with isolates reads")
 parser.add_argument("--out-dir", "-o", type=str, required=True, help="Output directory to create")
 
