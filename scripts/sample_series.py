@@ -40,12 +40,18 @@ def gen_samples(args):
 
                 input_file = os.path.join(args.input_dir, 'SRR182451{}_{}.fastq.gz'.format(isolate_name, order))
                 
-                os.system("seqtk sample -s{seed} {input_file} {num_reads} >> {output}".format(
+                os.system("~/tools/seqtk/seqtk sample -s{seed} {input_file} {num_reads} >> {output}".format(
                     seed=seed, 
                     input_file=input_file, 
-                    num_reads=profile[cur_g, cur_s], 
-                    output=os.path.join(sample_dir, 'R{}.fastq'.format(order))))
+                    num_reads=profile[cur_g, cur_s]*5000, 
+                    output=os.path.join(sample_dir, 's-R{}.fastq'.format(order))))
                 
+                print("~/tools/seqtk/seqtk sample -s{seed} {input_file} {num_reads} >> {output}".format(
+                                        seed=seed,
+                                                            input_file=input_file,
+                                                                                num_reads=profile[cur_g, cur_s]*5000,
+                                                                                                    output=os.path.join(sample_dir, 's-R{}.fastq'.format(order))))
+
                 #TODO: why is it not working?
                 #reads_file = open(os.path.join(curdir, 'R{}.fastq'.format(order)), 'a')
                 #subprocess.check_call(["~/tools/seqtk/seqtk sample", "-s", str(seed), input_file, str(num_reads)], shell=True, stdout=reads_file)

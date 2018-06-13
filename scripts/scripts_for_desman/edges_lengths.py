@@ -1,6 +1,6 @@
 import sys
 
-def cp_long_seq(input_file, output_file):
+def count_length(input_file, output_file):
     input_handle = open(input_file, 'rU')
     output_handle = open(output_file, "w")
     
@@ -20,4 +20,4 @@ def cp_long_seq(input_file, output_file):
 
 
 if __name__=="__main__":
-    cp_long_seq(sys.argv[1], sys.argv[2])
+    count_length(sys.argv[1], sys.argv[2])

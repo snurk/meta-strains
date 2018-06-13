@@ -17,6 +17,6 @@ with open(output, "w") as out_file:
             fasta.id = cur_strain+'_'+str(counter)
             fasta.description = ""
             #fasta.seq = str(fasta.seq).replace('K', 'G')
-            print(Counter(str(fasta.seq)))
+            #print(Counter(str(fasta.seq)))
             SeqIO.write(fasta, out_file, "fasta")
             counter += 1 
