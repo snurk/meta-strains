@@ -1,0 +1,154 @@
+SAMPLES = ["sample"+str(i) for i in range(1,3)]
+DIR_WITH_SAMPLES = "/Sid/snurk/mts/data/infant_gut/"
+NAME_OF_LEFT_READ = "left.fastq.gz"
+NAME_OF_RIGHT_READ = "right.fastq.gz"
+
+DIR_WITH_BINS = "/Sid/ygorshkov/mts/multi-ig/main_concoct/reassembly/"
+
+BINS = ["BIN%s" % i for i in [10, 28]]
+
+#PATH_TO_CONTIGS = "/Sid/ygorshkov/mts/multi-ig/main_concoct/reassembly/BIN28/contigs.fasta"
+
+PATH_TO_SCRIPTS = "~/meta-strains/scripts"
+CONTIGS_MIN_LEN = 10000
+
+
+#_____________________________________________________________________________
+
+
+rule all:
+    input:
+        expand("{bin}/hists/{sample}.png", bin=BINS, sample=SAMPLES)
+
+
+rule cp_long_contigs:
+    input:
+         DIR_WITH_BINS + "{bin}/contigs.fasta"
+    output:
+        "{bin}/contigs/contigs.fasta"
+    log:
+        "logs/cp_long_contigs/{bin}.log"
+    shell:
+        "(python {PATH_TO_SCRIPTS}/scripts_for_desman/cp_long_contigs.py {input} {output} {CONTIGS_MIN_LEN}) 2> {log}"
+
+
+rule join_contigs:
+    input:
+        "{bin}/contigs/contigs.fasta"
+    output:
+        "{bin}/contigs/joined_contigs.fasta"
+    shell:
+        "python ~/meta-strains/scripts/join_contigs.py 100 {input} {wildcards.bin}_joined_long_contigs {output}"
+
+
+rule concat_contigs:
+    input:
+        expand("{bin}/contigs/joined_contigs.fasta", bin=BINS)
+    output:
+        "concat_contigs/contigs.fasta"
+    shell:
+        "cat {input} > {output}"
+
+
+rule bwa_index:
+    input:
+        "concat_contigs/contigs.fasta"
+    output:
+        "concat_contigs/contigs.fasta.amb",
+        "concat_contigs/contigs.fasta.ann",
+        "concat_contigs/contigs.fasta.bwt",
+        "concat_contigs/contigs.fasta.pac",
+        "concat_contigs/contigs.fasta.sa"
+    log:
+        "logs/bwa_index.log"
+    shell:
+        "(bwa index {input}) 2> {log}"
+
+
+rule bwa_map:
+    input:
+        contigs = "concat_contigs/contigs.fasta",
+        index = lambda wildcards: expand("concat_contigs/contigs.fasta.{ext}",
+                ext=["amb", "ann", "bwt", "pac", "sa"]),
+        R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
+        R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
+    output:
+        "concat_contigs/mapped_reads/{sample}.bam"
+    log:
+        "logs/bwa_map/{sample}.log"
+    shell:
+        "(bwa mem -t 16 -O 100500 -A 1 -B 10 -T 50 {input.contigs} {input.R1} {input.R2}" 
+        " | samtools view -bS - > {output}) 2> {log}"
+
+
+rule split_bam:
+    input:
+        "concat_contigs/mapped_reads/{sample}.bam"
+    output:
+        expand("concat_contigs/mapped_reads/{{sample}}.REF_{bin}_joined_long_contigs.bam", bin=BINS)    
+    shell:
+        "touch {output} && bamtools split -in {input} -reference"
+
+
+rule cp_splited_bam:
+    input:
+        "concat_contigs/mapped_reads/{sample}.REF_{bin}_joined_long_contigs.bam"
+    output:
+        "{bin}/mapped_reads/{sample}.bam"
+    shell:
+        "cp {input} {output}"
+
+
+rule samtools_sort:
+    input:
+        "{bin}/mapped_reads/{sample}.bam"
+    output:
+        "{bin}/sorted_reads/{sample}.bam"
+    log:
+        "logs/samtools_sort/{bin}/{sample}.log"
+    shell:
+        "samtools sort -T {wildcards.bin}/sorted_reads/{wildcards.sample} "
+        "-O bam {input} > {output} 2> {log}"
+
+
+rule samtools_mpileup:
+    input:
+        fa = "{bin}/contigs/contigs.fasta",
+        bam = expand("{{bin}}/sorted_reads/{sample}.bam", sample=SAMPLES)
+    output:
+        "{bin}/calls/all.pileup"
+    log:
+        "logs/{bin}/samtools_mpileup.log"
+    shell:
+        "samtools mpileup -B -f {input.fa} {input.bam} > {output} 2> {log}"
+
+
+rule varscan:
+    input:
+        "{bin}/calls/all.pileup"
+    output:
+        "{bin}/calls/all.varscan"
+    log:
+        "logs/{bin}/varscan.log"
+    shell:
+        "java -jar /home/makseshina/tools/VarScan.v2.3.9.jar mpileup2snp {input} "
+        "--min-coverage	10 --min-reads2 5 --min-var-freq 0.02 > {output} 2> {log}"
+
+
+rule analyze_dominated:
+    input:
+        "{bin}/calls/all.varscan"
+    output:
+        expand("{{bin}}/hists/{sample}.png", sample=SAMPLES),
+        "{bin}/dominated_genotypes.png"
+    log:
+        "{bin}/dominated_analysis.txt"
+    params:
+        samples_list = ','.join(SAMPLES)
+    shell:
+        """
+        (
+        cd {wildcards.bin}
+        python {PATH_TO_SCRIPTS}/dominated.py calls/all.varscan {params.samples_list} > dominated_analysis.txt
+        )
+        """
