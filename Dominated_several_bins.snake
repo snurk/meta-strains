@@ -1,4 +1,4 @@
-SAMPLES = ["sample"+str(i) for i in range(1,3)]
+SAMPLES = ["sample"+str(i) for i in range(1,12)]
 DIR_WITH_SAMPLES = "/Sid/snurk/mts/data/infant_gut/"
 NAME_OF_LEFT_READ = "left.fastq.gz"
 NAME_OF_RIGHT_READ = "right.fastq.gz"
@@ -50,34 +50,35 @@ rule concat_contigs:
         "cat {input} > {output}"
 
 
-rule bwa_index:
+rule bowtie2_index:
     input:
         "concat_contigs/contigs.fasta"
     output:
-        "concat_contigs/contigs.fasta.amb",
-        "concat_contigs/contigs.fasta.ann",
-        "concat_contigs/contigs.fasta.bwt",
-        "concat_contigs/contigs.fasta.pac",
-        "concat_contigs/contigs.fasta.sa"
+        "concat_contigs/contigs.fasta.1.bt2",
+        "concat_contigs/contigs.fasta.2.bt2",
+        "concat_contigs/contigs.fasta.3.bt2",
+        "concat_contigs/contigs.fasta.4.bt2",
+        "concat_contigs/contigs.fasta.rev.1.bt2",
+        "concat_contigs/contigs.fasta.rev.2.bt2"
     log:
-        "logs/bwa_index.log"
+        "logs/bowtie2_index.log"
     shell:
-        "(bwa index {input}) 2> {log}"
+        "(bowtie2-build {input} concat_contigs/contigs.fasta) 2> {log}"
 
 
-rule bwa_map:
+rule bowtie2_map:
     input:
         contigs = "concat_contigs/contigs.fasta",
         index = lambda wildcards: expand("concat_contigs/contigs.fasta.{ext}",
-                ext=["amb", "ann", "bwt", "pac", "sa"]),
+                ext=["1.bt2", "2.bt2", "3.bt2", "4.bt2", "rev.1.bt2", "rev.2.bt2"]),
         R1 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_LEFT_READ,
         R2 = DIR_WITH_SAMPLES + "{sample}/" + NAME_OF_RIGHT_READ
     output:
         "concat_contigs/mapped_reads/{sample}.bam"
     log:
-        "logs/bwa_map/{sample}.log"
+        "logs/bowtie2_map/{sample}.log"
     shell:
-        "(bwa mem -t 16 -O 100500 -A 1 -B 10 -T 50 {input.contigs} {input.R1} {input.R2}" 
+        "(bowtie2 -p 16 -x {input.contigs} -1 {input.R1} -2 {input.R2} --maxins 1000 --n-ceil 0,0 --np 100500 " 
         " | samtools view -bS - > {output}) 2> {log}"
 
 
@@ -87,7 +88,7 @@ rule split_bam:
     output:
         expand("concat_contigs/mapped_reads/{{sample}}.REF_{bin}_joined_long_contigs.bam", bin=BINS)    
     shell:
-        "touch {output} && bamtools split -in {input} -reference"
+        "bamtools split -in {input} -reference"
 
 
 rule cp_splited_bam:
@@ -113,7 +114,7 @@ rule samtools_sort:
 
 rule samtools_mpileup:
     input:
-        fa = "{bin}/contigs/contigs.fasta",
+        fa = "concat_contigs/contigs.fasta",
         bam = expand("{{bin}}/sorted_reads/{sample}.bam", sample=SAMPLES)
     output:
         "{bin}/calls/all.pileup"
