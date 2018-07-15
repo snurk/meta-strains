@@ -4,7 +4,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 import os
-# import seaborn as sns
+import seaborn as sns
 import warnings
 
 import scipy
@@ -66,6 +66,32 @@ def filter_by_coverage(depth, vafs, bad_percentile=0.3, good_samples_percent=0.8
     ind = ((depth > q1) & (depth < q2)).sum(axis=1) >= necessary_amount
 
     return ind
+
+
+def draw_heatmap(genotypes, sample_names, clusters, dominated_samples):
+    colors = ['yellow', 'purple', 'orange', '#96cde6', 'red', '#c0bd7f', 'green', '#5fa641', '#d485b2',
+              '#4277b6', '#df8461', '#463397', '#e1a11a', '#91218c', '#e8e948', '#7e1510',
+              '#92ae31', '#6f340d', '#d32b1e', '#2b3514']
+
+    last_color = 0
+    row_colors = [-1] * len(sample_names)
+    for clustered_samples in clusters.values():
+        for sample in clustered_samples:
+            row_colors[sample_names.index(sample)] = colors[last_color]
+        last_color += 1
+    row_colors = [row_colors[i] for i in dominated_samples]
+
+    g = sns.clustermap(genotypes,
+                       xticklabels=False,
+                       yticklabels=[sample_names[i] for i in dominated_samples],
+                       cmap="plasma",
+                       row_colors=row_colors)
+    plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
+    g.cax.set_visible(False)
+    plt.suptitle('%i SNVs' % genotypes.shape[1])
+    #plt.interactive(False)
+    #plt.show(block=True)
+    plt.savefig("dominated_genotypes.png")
 
 
 def main():
@@ -141,13 +167,7 @@ def main():
     for clustered_samples in clusters.values():
         print(", ".join(clustered_samples))
 
-    # g = sns.clustermap(genotypes.T,
-    #                    xticklabels = False,
-    #                    yticklabels=[sample_names[i] for i in dominated_samples])
-    # plt.setp(g.ax_heatmap.get_yticklabels(), rotation=0)
-    # g.cax.set_visible(False)
-    # plt.suptitle('%i SNVs' % len(genotypes))
-    # plt.savefig("dominated_genotypes.png")
+    draw_heatmap(genotypes, sample_names, clusters, dominated_samples)
 
 
 if __name__ == "__main__":
